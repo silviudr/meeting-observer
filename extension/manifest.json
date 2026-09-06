@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Meeting Observer",
+  "version": "0.1.0",
+  "description": "Capture Google Meet live captions and stream them to a local Meeting Observer backend.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": [
+    "https://meet.google.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Meeting Observer"
+  }
+}

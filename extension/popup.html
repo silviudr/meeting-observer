@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meeting Observer</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <form id="settingsForm">
+      <h1>Meeting Observer</h1>
+      <label>
+        Backend URL
+        <input id="backendUrl" name="backendUrl" autocomplete="off" />
+      </label>
+      <label>
+        Session ID
+        <input id="sessionId" name="sessionId" autocomplete="off" />
+      </label>
+      <label class="toggle">
+        <input id="captureEnabled" name="captureEnabled" type="checkbox" />
+        Capture captions
+      </label>
+      <button type="submit">Save</button>
+      <p id="status"></p>
+    </form>
+    <script src="popup.js"></script>
+  </body>
+</html>

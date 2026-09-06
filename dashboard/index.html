@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meeting Observer</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h1>Meeting Observer</h1>
+          <p id="statusText">Disconnected</p>
+        </div>
+        <form id="sessionForm" class="session-form">
+          <label>
+            Session
+            <input id="sessionInput" name="session" value="demo" autocomplete="off" />
+          </label>
+          <button type="submit">Connect</button>
+        </form>
+      </header>
+
+      <section class="summary-strip" aria-label="Meeting summary">
+        <div>
+          <span class="metric" id="lineCount">0</span>
+          <span class="label">Lines</span>
+        </div>
+        <div>
+          <span class="metric" id="participantCount">0</span>
+          <span class="label">Participants</span>
+        </div>
+        <div>
+          <span class="metric" id="insightCount">0</span>
+          <span class="label">Insights</span>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <section class="panel transcript-panel" aria-labelledby="transcriptHeading">
+          <div class="panel-header">
+            <h2 id="transcriptHeading">Transcript</h2>
+            <button id="clearButton" type="button">Delete Session</button>
+          </div>
+          <ol id="transcriptList" class="transcript-list"></ol>
+        </section>
+
+        <section class="panel insights-panel" aria-labelledby="insightsHeading">
+          <div class="panel-header">
+            <h2 id="insightsHeading">Intent</h2>
+            <span id="modelMode" class="model-mode">rules</span>
+          </div>
+          <div id="insightsList" class="insights-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/static/app.js" type="module"></script>
+  </body>
+</html>
