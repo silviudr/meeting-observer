@@ -7,8 +7,7 @@
   "host_permissions": [
     "https://meet.google.com/*",
     "http://localhost/*",
-    "http://127.0.0.1/*",
-    "http://*/*"
+    "http://127.0.0.1/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -16,7 +15,7 @@
   "content_scripts": [
     {
       "matches": ["https://meet.google.com/*"],
-      "js": ["content.js"],
+      "js": ["core.js", "content.js"],
       "run_at": "document_idle"
     }
   ],

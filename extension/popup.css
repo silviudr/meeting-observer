@@ -1,5 +1,5 @@
 body {
-  width: 300px;
+  width: 320px;
   margin: 0;
   background: #f6f7f9;
   color: #17202a;
@@ -27,6 +27,7 @@ label {
 }
 
 input {
+  min-width: 0;
   height: 34px;
   border: 1px solid #d9dee7;
   border-radius: 8px;
@@ -62,6 +63,10 @@ button {
 #status {
   min-height: 18px;
   margin: 0;
-  color: #16833a;
+  color: #344054;
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
+
+a { color: #1f6feb; font-size: 13px; }
+button:disabled { opacity: 0.6; cursor: wait; }

@@ -1,80 +1,69 @@
-# DGX Deployment
+# Private vLLM Guide
 
-## Objective
+Status: **runtime launch pending.** This filename is retained for existing links.
+The app and dashboard stay on the local computer at `http://localhost:8010`;
+a private GPU machine serves inference only.
 
-Run Meeting Observer inference locally on an NVIDIA DGX box so meeting transcript data stays inside the local environment.
+## Known State
 
-## Recommended Runtime
+One development environment used an NVIDIA GB10-class machine with 128 GB unified
+memory, vLLM `0.26.0`, and a cached `nvidia/Qwen3.6-35B-A3B-NVFP4` checkpoint.
+Do not rely on that exact setup. Record your own GPU, driver, vLLM version,
+model revision, memory limits and serving command.
 
-Use `vLLM` first. It provides an OpenAI-compatible HTTP API, which keeps the Meeting Observer backend independent from the specific model runtime.
+Preferred first model: `nvidia/Qwen3.6-35B-A3B-NVFP4`. NVIDIA recommends this artifact
+for DGX Spark in its [vLLM guide](https://build.nvidia.com/spark/vllm/agent-ready-models).
+Applying a Spark recipe to other GB10-class systems is an inference, not proof of
+compatibility. The [NVIDIA model card](https://huggingface.co/nvidia/Qwen3.6-35B-A3B-NVFP4)
+describes the quantized artifact. Ollama comparison is optional, not required.
 
-## Network Shape
+## Resolve Before Launch
 
-```text
-Chrome extension on laptop
-  -> FastAPI backend on laptop or DGX
-  -> vLLM endpoint on DGX
-  -> dashboard in user's browser
-```
+Before using the model for real meetings, launch the installed vLLM environment,
+check architecture/driver compatibility against the current official recipe, and
+record the actual model revision, quantization, context limit, generation limit
+and service configuration. Do not download weights as part of documentation or
+synthetic local validation.
 
-For the first deployment, run both FastAPI and `vLLM` on the DGX if the laptop can reach the DGX over the LAN.
+Configure runtime and any proxy to avoid prompt/response logging, request-body
+tracing, durable response caches and content-bearing crash artifacts. Verify those
+settings on the selected version before sending real captions. An in-memory KV
+cache is distinct from durable content retention; session end is not a claim of
+forensic GPU-memory erasure.
 
-## Backend Environment
+## Application Connection
 
-```bash
-export MEETING_OBSERVER_LLM_BASE_URL=http://dgx-host:8000/v1
-export MEETING_OBSERVER_LLM_MODEL=local-intent-model
-export MEETING_OBSERVER_LLM_API_KEY=local
-export MEETING_OBSERVER_DB=/data/meeting-observer/meeting_observer.sqlite
-```
-
-Start the backend:
-
-```bash
-uvicorn app.asgi:app --app-dir server --host 0.0.0.0 --port 8010
-```
-
-Point the Chrome extension backend URL to:
-
-```text
-http://dgx-host:8010
-```
-
-## vLLM Example
-
-Exact model choice depends on what is installed on the DGX. The backend only requires an OpenAI-compatible `/v1/chat/completions` endpoint.
-
-Example shape:
+Once an endpoint is verified and already running, point the app at its actual
+OpenAI-compatible `/v1` URL. This example assumes a separately verified local
+tunnel on port 8000; it does not establish or start one:
 
 ```bash
-vllm serve /models/local-intent-model \
-  --host 0.0.0.0 \
-  --port 8000 \
-  --served-model-name local-intent-model
+export MEETING_OBSERVER_LLM_BASE_URL=http://127.0.0.1:8000/v1
+export MEETING_OBSERVER_LLM_MODEL=nvidia/Qwen3.6-35B-A3B-NVFP4
+# Set MEETING_OBSERVER_LLM_API_KEY to the configured runtime credential.
+uvicorn app.main:app --app-dir server --host 127.0.0.1 --port 8010 --no-access-log
 ```
 
-## Operational Requirements
+For direct private-network access substitute the verified private host and port.
+Use a trusted tunnel or protected network path and runtime authentication; do not
+expose the app or inference service publicly. Confirm `/v1/models` advertises the
+configured served model name without printing credentials or response content
+from inference calls.
 
-- Restrict backend access to trusted LAN clients.
-- Use firewall rules so only required ports are reachable.
-- Prefer ephemeral sessions while testing.
-- Put SQLite storage on a persistent volume only if meetings need to be retained.
-- Add HTTPS or a trusted tunnel before using this outside a private LAN.
+The application uses `/v1/chat/completions`, bounded output and structured JSON.
+The [vLLM API documentation](https://docs.vllm.ai/en/latest/serving/openai_compatible_server/)
+documents the compatible endpoint and extra parameters. Disable thinking for every
+request using `chat_template_kwargs: {"enable_thinking": false}`, as documented
+in the [Qwen model card](https://huggingface.co/Qwen/Qwen3.6-35B-A3B).
+Check the actual wire request and response; JSON formatting alone does not prove
+thinking is disabled. Reject residual reasoning and unsupported evidence.
 
-## Validation
+## Acceptance
 
-1. Start `vLLM`.
-2. Start the FastAPI backend with the environment above.
-3. Open `http://dgx-host:8010/health`.
-4. Confirm `model_mode` is `llm`.
-5. Stream the sample meeting:
-
-```bash
-python scripts/stream_sample_meeting.py --base-url http://dgx-host:8010 --session dgx-test
-```
-
-6. Open the dashboard at:
-
-```text
-http://dgx-host:8010/?session=dgx-test
-```
+Run the [synthetic evaluator](meeting-analysis-evaluation.md) first, then the full
+simulation and controlled Meet check. Report model/runtime revisions, settings,
+sample count, cold versus warm state, evidence validity and coaching review.
+Keep raw inference request latency separate from finalized-caption-to-displayed-
+insight latency. Candidate warm application goals are median <=5 seconds and
+p95 <=10 seconds; neither has been measured here. Health success, unit tests and
+token throughput do not establish those goals.

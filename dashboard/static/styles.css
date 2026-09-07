@@ -69,6 +69,7 @@ h2 {
 .session-form {
   display: flex;
   align-items: end;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -82,7 +83,8 @@ label {
 }
 
 input {
-  width: 220px;
+  width: 190px;
+  max-width: 100%;
   height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -103,6 +105,17 @@ button {
 
 button:hover {
   border-color: #9aa4b2;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
 }
 
 .summary-strip {
@@ -141,11 +154,9 @@ button:hover {
 
 .panel {
   min-height: 620px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
   background: var(--surface);
-  box-shadow: var(--shadow);
   overflow: hidden;
+  min-width: 0;
 }
 
 .panel-header {
@@ -172,14 +183,33 @@ button:hover {
   padding: 0 10px;
   font-size: 12px;
   font-weight: 700;
+  flex-shrink: 0;
+}
+
+.analysis-status {
+  padding: 12px 14px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.analysis-status[data-status="unavailable"] {
+  color: var(--red);
+}
+
+.analysis-status[data-status="pending"] {
+  color: var(--amber);
 }
 
 .transcript-list {
+  position: relative;
   list-style: none;
   margin: 0;
   padding: 0;
   max-height: 70vh;
   overflow: auto;
+  overflow-anchor: none;
 }
 
 .transcript-line {
@@ -222,6 +252,7 @@ button:hover {
   border-radius: 8px;
   padding: 14px;
   background: #fbfcfe;
+  overflow-wrap: anywhere;
 }
 
 .insight-top {
@@ -229,6 +260,7 @@ button:hover {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
 .intent-label {
@@ -236,11 +268,6 @@ button:hover {
   font-size: 12px;
   font-weight: 750;
   text-transform: uppercase;
-}
-
-.confidence {
-  color: var(--green);
-  font-weight: 750;
 }
 
 .hypothesis {
@@ -264,7 +291,7 @@ button:hover {
 }
 
 .move {
-  margin: 0;
+  margin: 0 0 10px;
   color: var(--amber);
   font-weight: 650;
   line-height: 1.4;
@@ -286,16 +313,34 @@ button:hover {
     width: 100%;
   }
 
-  .workspace,
-  .summary-strip {
+  .workspace {
     grid-template-columns: 1fr;
   }
 
   .panel {
-    min-height: 420px;
+    min-height: 240px;
   }
 
   .transcript-line {
     grid-template-columns: 1fr;
   }
+
+  .transcript-list,
+  .insights-list {
+    max-height: 50vh;
+  }
+
+  .session-form button {
+    align-self: start;
+  }
+}
+
+#statusText {
+  overflow-wrap: anywhere;
+}
+
+.topbar > div,
+.session-form,
+label {
+  min-width: 0;
 }

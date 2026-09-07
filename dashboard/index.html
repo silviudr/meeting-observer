@@ -11,14 +11,18 @@
       <header class="topbar">
         <div>
           <h1>Meeting Observer</h1>
-          <p id="statusText">Disconnected</p>
+          <p id="statusText" role="status" aria-live="polite">No active session</p>
         </div>
         <form id="sessionForm" class="session-form">
           <label>
             Session
-            <input id="sessionInput" name="session" value="demo" autocomplete="off" />
+            <input id="sessionInput" name="session" value="demo" autocomplete="off" required maxlength="80" pattern="[A-Za-z0-9_\-]{1,80}" title="1-80 letters, digits, underscores or hyphens" />
           </label>
-          <button type="submit">Connect</button>
+          <label>
+            Access token
+            <input id="tokenInput" type="password" autocomplete="off" spellcheck="false" />
+          </label>
+          <button type="submit">Start / Connect</button>
         </form>
       </header>
 
@@ -41,16 +45,17 @@
         <section class="panel transcript-panel" aria-labelledby="transcriptHeading">
           <div class="panel-header">
             <h2 id="transcriptHeading">Transcript</h2>
-            <button id="clearButton" type="button">Delete Session</button>
+            <button id="clearButton" type="button" disabled>End session</button>
           </div>
           <ol id="transcriptList" class="transcript-list"></ol>
         </section>
 
         <section class="panel insights-panel" aria-labelledby="insightsHeading">
           <div class="panel-header">
-            <h2 id="insightsHeading">Intent</h2>
-            <span id="modelMode" class="model-mode">rules</span>
+            <h2 id="insightsHeading">Coaching</h2>
+            <span id="modelMode" class="model-mode">Not connected</span>
           </div>
+          <p id="analysisStatus" class="analysis-status" role="status" aria-live="polite">No active analysis</p>
           <div id="insightsList" class="insights-list"></div>
         </section>
       </section>

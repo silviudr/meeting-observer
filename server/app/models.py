@@ -32,6 +32,7 @@ class TranscriptEventIn(BaseModel):
     timestamp: datetime = Field(default_factory=utc_now)
     source: str = Field(default="unknown", max_length=80)
     sequence: int | None = None
+    client_event_id: str | None = Field(default=None, min_length=1, max_length=120)
 
 
 class TranscriptEvent(TranscriptEventIn):
@@ -45,6 +46,8 @@ class IntentHypothesis(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     evidence: list[str] = Field(default_factory=list)
     suggested_user_move: str
+    evidence_event_ids: list[str] = Field(default_factory=list)
+    analysis_mode: Literal["vllm", "rules"] = "rules"
     updated_at: datetime = Field(default_factory=utc_now)
 
 
@@ -63,6 +66,11 @@ class SessionSnapshot(BaseModel):
     transcript: list[TranscriptEvent]
     participants: list[ParticipantState]
     insights: list[IntentHypothesis]
+    status: Literal["active", "ended"] = "active"
+    revision: int = 0
+    analysis_mode: Literal["vllm", "rules"] = "rules"
+    analysis_status: Literal["idle", "pending", "ready", "unavailable"] = "idle"
+    analysis_detail: str | None = None
 
 
 class IngestResponse(BaseModel):
