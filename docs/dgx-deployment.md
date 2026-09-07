@@ -33,7 +33,30 @@ forensic GPU-memory erasure.
 
 ## Application Connection
 
-Once an endpoint is verified and already running, point the app at its actual
+Example vLLM server command used for the first GB10-class test:
+
+```bash
+source ~/vllm-env/bin/activate
+
+vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --trust-remote-code \
+  --kv-cache-dtype fp8 \
+  --attention-backend flashinfer \
+  --moe-backend marlin \
+  --max-model-len 8192 \
+  --max-num-seqs 2 \
+  --max-num-batched-tokens 4096 \
+  --disable-log-stats
+```
+
+Use `--max-num-seqs 1` and `--max-num-batched-tokens 2048` as a conservative
+starting point if the runtime is memory constrained. Binding to `0.0.0.0`
+requires a trusted private network, firewall rule, or SSH tunnel; otherwise bind
+to `127.0.0.1` and tunnel to it.
+
+Once the endpoint is verified and already running, point the app at its actual
 OpenAI-compatible `/v1` URL. This example assumes a separately verified local
 tunnel on port 8000; it does not establish or start one:
 
@@ -55,8 +78,10 @@ The [vLLM API documentation](https://docs.vllm.ai/en/latest/serving/openai_compa
 documents the compatible endpoint and extra parameters. Disable thinking for every
 request using `chat_template_kwargs: {"enable_thinking": false}`, as documented
 in the [Qwen model card](https://huggingface.co/Qwen/Qwen3.6-35B-A3B).
-Check the actual wire request and response; JSON formatting alone does not prove
-thinking is disabled. Reject residual reasoning and unsupported evidence.
+This is an application request setting, not a vLLM serve flag. It is intentional
+for lower latency and to avoid receiving hidden reasoning. Check the actual wire
+request and response; JSON formatting alone does not prove thinking is disabled.
+Reject residual reasoning and unsupported evidence.
 
 ## Acceptance
 

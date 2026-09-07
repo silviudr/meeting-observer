@@ -45,6 +45,28 @@ Start an OpenAI-compatible vLLM server on a private machine or local GPU box. Th
 first tested target model is `nvidia/Qwen3.6-35B-A3B-NVFP4` with thinking disabled
 by the application request.
 
+Example vLLM server command used for the first GB10-class test:
+
+```bash
+source ~/vllm-env/bin/activate
+
+vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --trust-remote-code \
+  --kv-cache-dtype fp8 \
+  --attention-backend flashinfer \
+  --moe-backend marlin \
+  --max-model-len 8192 \
+  --max-num-seqs 2 \
+  --max-num-batched-tokens 4096 \
+  --disable-log-stats
+```
+
+Use a protected private network path, firewall rule, or SSH tunnel if binding
+vLLM to `0.0.0.0`. For lower memory pressure, start with `--max-num-seqs 1` and
+`--max-num-batched-tokens 2048`.
+
 Example backend configuration:
 
 ```bash
@@ -70,6 +92,11 @@ curl http://localhost:8010/health
 configured for model analysis. It does not prove quality or latency; run the
 synthetic and browser checks below. See the [vLLM guide](docs/dgx-deployment.md)
 for runtime notes. Ollama is optional future comparison work, not a dependency.
+
+Thinking mode is intentionally disabled for every model request with
+`chat_template_kwargs: {"enable_thinking": false}`. This keeps inference faster
+and reduces the chance that hidden reasoning leaks into responses; the analyzer
+also rejects non-empty reasoning fields or `<think>` blocks.
 
 ## Load The Chrome Extension
 
