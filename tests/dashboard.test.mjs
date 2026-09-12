@@ -346,3 +346,104 @@ test("silent sockets recheck via GET and cannot renew or recreate expired sessio
   assertEmpty(h);
   assert.equal(h.timers.size, 0);
 });
+
+test("glance shows the top cue, lists the rest, and stays quiet when there are none", async () => {
+  const cues = [
+    { kind: "unanswered_question", message: "Dan asked a question and you have not spoken since.", priority: 100 },
+    { kind: "new_risk", message: "Priya has raised a risk.", priority: 80 },
+  ];
+  const h = harness("", async (url) => response(snapshot(url.split("/").at(-1), { cues, owner_speaker: "Maria", owner_matched: true })));
+  await h.submit("alpha");
+
+  assert.equal(h.elements.glanceText.textContent, "Dan asked a question and you have not spoken since.");
+  assert.equal(h.elements.glanceText.dataset.kind, "unanswered_question");
+  assert.match(h.elements.cueList.innerHTML, /Priya has raised a risk\./);
+  assert.doesNotMatch(h.elements.cueList.innerHTML, /asked a question/);
+  assert.equal(h.elements.ownerStatus.textContent, "Tracking you as Maria.");
+
+  h.sockets[0].message(snapshot("alpha", { revision: 2, cues: [], owner_speaker: "Maria", owner_matched: true }));
+  await flush();
+  assert.equal(h.elements.glanceText.textContent, "Nothing needs your attention.");
+  assert.equal(h.elements.glanceText.dataset.kind, "none");
+  assert.equal(h.elements.cueList.innerHTML, "");
+});
+
+test("an owner name that never matches a caption speaker is reported, not shown as working", async () => {
+  const h = harness("", async (url) => response(snapshot(url.split("/").at(-1), { owner_speaker: "Maria", owner_matched: false })));
+  await h.submit("alpha");
+  assert.match(h.elements.ownerStatus.textContent, /Waiting to hear Maria in captions/);
+  assert.match(h.elements.ownerStatus.textContent, /matches your caption label exactly/);
+});
+
+test("no owner set explains what the name unlocks", async () => {
+  const h = harness();
+  await h.submit("alpha");
+  assert.match(h.elements.ownerStatus.textContent, /No name set/);
+});
+
+test("Start sends the typed name, and reconnects do not resend it", async () => {
+  const h = harness("", async (url, options) => {
+    if (options.method === "POST") return response(snapshot(url.split("/").at(-1), { owner_speaker: "Maria", owner_matched: true }));
+    return response(snapshot(url.split("/").at(-1)));
+  });
+  h.elements.ownerInput.value = "  Maria  ";
+  await h.submit("alpha");
+  assert.deepEqual(JSON.parse(h.calls[0].body), { owner_speaker: "Maria" });
+
+  h.sockets[0].emit("close", {});
+  await flush();
+  await h.tick(1000);
+  const reconnect = h.calls.at(-1);
+  assert.equal(reconnect.method, "GET");
+  assert.equal(reconnect.body, undefined);
+});
+
+test("Set name posts to the owner endpoint and applies the returned snapshot", async () => {
+  const h = harness("", async (url, options) => {
+    if (url.endsWith("/owner")) {
+      return response(snapshot("alpha", { revision: 3, owner_speaker: JSON.parse(options.body).owner_speaker, owner_matched: true }));
+    }
+    return response(snapshot(url.split("/").at(-1)));
+  });
+  await h.submit("alpha");
+  h.elements.ownerInput.value = "Maria";
+  h.elements.ownerApply.emit("click");
+  await flush();
+
+  const call = h.calls.at(-1);
+  assert.ok(call.url.endsWith("/api/sessions/alpha/owner"));
+  assert.deepEqual(JSON.parse(call.body), { owner_speaker: "Maria" });
+  assert.equal(h.elements.ownerStatus.textContent, "Tracking you as Maria.");
+  assert.equal(h.elements.ownerApply.disabled, false);
+});
+
+test("clearing the name sends null and the control is disabled without a session", async () => {
+  const h = harness("", async (url, options) => {
+    if (url.endsWith("/owner")) return response(snapshot("alpha", { revision: 3, owner_speaker: null, owner_matched: false }));
+    return response(snapshot(url.split("/").at(-1)));
+  });
+  assert.equal(h.elements.ownerApply.disabled, true);
+  await h.submit("alpha");
+  assert.equal(h.elements.ownerApply.disabled, false);
+
+  h.elements.ownerInput.value = "   ";
+  h.elements.ownerApply.emit("click");
+  await flush();
+  assert.deepEqual(JSON.parse(h.calls.at(-1).body), { owner_speaker: null });
+  assert.match(h.elements.ownerStatus.textContent, /No name set/);
+});
+
+test("ending a session clears the glance area", async () => {
+  const cues = [{ kind: "new_risk", message: "Priya has raised a risk.", priority: 80 }];
+  const h = harness("", async (url, options) => options.method === "DELETE"
+    ? response({ deleted: true })
+    : response(snapshot(url.split("/").at(-1), { cues })));
+  await h.submit("alpha");
+  assert.equal(h.elements.glanceText.textContent, "Priya has raised a risk.");
+
+  h.end();
+  await flush();
+  assert.equal(h.elements.glanceText.textContent, "Nothing needs your attention.");
+  assert.equal(h.elements.cueList.innerHTML, "");
+  assert.equal(h.elements.ownerApply.disabled, true);
+});

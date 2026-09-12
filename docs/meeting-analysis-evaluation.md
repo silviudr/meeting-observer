@@ -1,6 +1,9 @@
 # Meeting Analysis Evaluation
 
-Status: pending live vLLM run. Use only synthetic content.
+Status: a live vLLM run on the GX10 has succeeded qualitatively. The repeatable
+harness exists at `scripts/evaluate_meeting_analysis.py` with synthetic fixtures,
+but has not yet been run against the GX10, so no measured result is recorded.
+Use only synthetic content.
 
 This check evaluates whether Meeting Observer produces grounded intent
 hypotheses and concise coaching prompts through the application analyzer. It is
@@ -64,6 +67,27 @@ Application delivery check without a model endpoint:
 uvicorn app.main:app --app-dir server --host 127.0.0.1 --port 8010 --no-access-log
 python3 scripts/stream_sample_meeting.py
 ```
+
+Full evaluation against a configured endpoint:
+
+```bash
+export MEETING_OBSERVER_LLM_BASE_URL=http://your-gx10-host:8000/v1
+export MEETING_OBSERVER_LLM_MODEL=nvidia/Qwen3.6-35B-A3B-NVFP4
+
+./.venv/bin/python scripts/evaluate_meeting_analysis.py \
+  --repeat 3 --note "GX10 run" --json /tmp/gx10-eval.json
+```
+
+The harness calls the application analyzer, so it exercises the same request and
+validation path as live capture. It exits non-zero when structural grounding
+fails, the wire request does not disable thinking, or residual reasoning is
+found. `--repeat 3` yields enough warm samples for a meaningful p95; a single
+cycle does not. Reports hold metadata and scores only, never transcripts,
+responses, evidence quotes, reasoning, credentials or raw errors.
+
+The report's `operator_must_record` list names what the harness cannot observe:
+served model revision, quantization, GX10 free memory, and human review of
+coaching usefulness. Record those alongside the JSON.
 
 Rules mode proves transport only. A live vLLM run is required before claiming
 model quality, no-thinking behavior or GX10 latency.

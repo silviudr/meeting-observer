@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Callable
 
-from .models import IntentHypothesis, ParticipantState, SessionSnapshot, TranscriptEvent
+from .models import IntentHypothesis, ParticipantState, SalienceCue, SessionSnapshot, TranscriptEvent
+from .salience import compute_cues, is_owner_speaker, owner_matched
 
 
 def _now() -> datetime:
@@ -40,12 +41,21 @@ class MeetingSession:
     analysis_mode: str = "rules"
     analysis_status: str = "idle"
     analysis_detail: str | None = None
+    owner_speaker: str | None = None
+    # Monotonic last-seen per speaker; kept off the snapshot models because it
+    # is a clock reading, not meeting content.
+    speaker_seen: dict[str, float] = field(default_factory=dict)
+    previous_labels: dict[str, str] = field(default_factory=dict)
+    cues: list[SalienceCue] = field(default_factory=list)
 
     def snapshot(self, *, ended: bool = False) -> SessionSnapshot:
         return SessionSnapshot(
             session_id=self.session_id, started_at=self.started_at, updated_at=self.updated_at,
             transcript=[] if ended else self.transcript[-250:],
             participants=[] if ended else sorted(self.participants.values(), key=lambda item: item.speaker.lower()),
+            owner_speaker=None if ended else self.owner_speaker,
+            owner_matched=False if ended else owner_matched(self.participants, self.owner_speaker),
+            cues=[] if ended else list(self.cues),
             insights=[] if ended else list(self.insights.values()),
             status="ended" if ended else "active", revision=self.revision,
             analysis_mode=self.analysis_mode,
@@ -112,6 +122,9 @@ class SessionStore:
             participant.utterance_count += 1
             participant.last_seen_at = event.timestamp
             participant.recent_lines = [*participant.recent_lines[-9:], event.text]
+            participant.is_owner = is_owner_speaker(session.owner_speaker, event.speaker)
+            session.speaker_seen[event.speaker] = session.last_activity
+            self._refresh_cues(session)
             return session, False
 
     async def analysis_input(self, session_id: str) -> tuple[int, list[TranscriptEvent], dict[str, IntentHypothesis]]:
@@ -127,12 +140,19 @@ class SessionStore:
             session = self._get(session_id)
             if revision <= session.analyzed_revision or revision > session.revision:
                 return None
+            # Labels from the previous pass must be stored before insights are
+            # replaced, so cue computation compares this pass against the last.
+            session.previous_labels = {
+                speaker: item.intent_label for speaker, item in session.insights.items()
+            }
             session.insights = {insight.speaker: insight for insight in insights}
             for participant in session.participants.values():
                 participant.current_intent = session.insights.get(participant.speaker)
+                participant.is_owner = is_owner_speaker(session.owner_speaker, participant.speaker)
             session.analyzed_revision, session.analysis_mode = revision, mode
             session.analysis_status = "pending" if revision < session.revision else status
             session.analysis_detail, session.updated_at = detail, _now()
+            self._refresh_cues(session)
             return session
 
     async def end(self, session_id: str) -> SessionSnapshot | None:
@@ -148,8 +168,36 @@ class SessionStore:
             session.insights.clear()
             session.participants.clear()
             session.event_ids.clear()
+            session.speaker_seen.clear()
+            session.previous_labels.clear()
+            session.cues.clear()
+            session.owner_speaker = None
             session.analysis_detail = None
             return snapshot
+
+    async def set_owner(self, session_id: str, owner_speaker: str | None) -> MeetingSession:
+        async with self.lock:
+            session = self._get(session_id)
+            cleaned = " ".join((owner_speaker or "").split())
+            session.owner_speaker = cleaned or None
+            for speaker, participant in session.participants.items():
+                participant.is_owner = is_owner_speaker(session.owner_speaker, speaker)
+            session.revision += 1
+            session.updated_at = _now()
+            self._refresh_cues(session)
+            return session
+
+    def _refresh_cues(self, session: MeetingSession) -> None:
+        """Recompute cues under the caller's lock. O(recent events) by design."""
+        session.cues = compute_cues(
+            transcript=session.transcript,
+            participants=session.participants,
+            insights=session.insights,
+            previous_labels=session.previous_labels,
+            speaker_seen=session.speaker_seen,
+            owner_speaker=session.owner_speaker,
+            now=self.clock(),
+        )
 
     async def expired(self) -> list[str]:
         async with self.lock:

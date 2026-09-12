@@ -1,6 +1,8 @@
 # Private vLLM Guide
 
-Status: **runtime launch pending.** This filename is retained for existing links.
+Status: **runtime launched; unmeasured.** An owner-reported live run of the full
+application path succeeded, but no latency or runtime configuration was recorded.
+This filename is retained for existing links.
 The app and dashboard stay on the local computer at `http://localhost:8010`;
 a private GPU machine serves inference only.
 

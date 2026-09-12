@@ -7,7 +7,7 @@
   // and observer:state broadcasts whenever capture state changes.
   function mountPopup({ chrome, document, validateSettings }) {
     const els = Object.fromEntries([
-      "settingsForm", "backendUrl", "sessionId", "accessToken", "captureEnabled", "save", "status",
+      "settingsForm", "backendUrl", "sessionId", "ownerSpeaker", "accessToken", "captureEnabled", "save", "status",
     ].map((id) => [id, document.querySelector(`#${id}`)]));
     let applying = false;
 
@@ -43,6 +43,7 @@
     function loadFields(state, token) {
       if (typeof state?.backendUrl === "string" && state.backendUrl) els.backendUrl.value = state.backendUrl;
       if (typeof state?.sessionId === "string" && state.sessionId) els.sessionId.value = state.sessionId;
+      if (typeof state?.ownerSpeaker === "string") els.ownerSpeaker.value = state.ownerSpeaker;
       els.captureEnabled.checked = state?.captureEnabled === true;
       if (typeof token === "string") els.accessToken.value = token;
       renderState(state);
@@ -79,6 +80,7 @@
         settings = validateSettings({
           backendUrl: els.backendUrl.value.trim(),
           sessionId: els.sessionId.value.trim(),
+          ownerSpeaker: els.ownerSpeaker.value,
           captureEnabled: els.captureEnabled.checked === true,
         });
       } catch (error) {

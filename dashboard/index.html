@@ -19,10 +19,15 @@
             <input id="sessionInput" name="session" value="demo" autocomplete="off" required maxlength="80" pattern="[A-Za-z0-9_\-]{1,80}" title="1-80 letters, digits, underscores or hyphens" />
           </label>
           <label>
+            Your name in captions
+            <input id="ownerInput" name="owner" autocomplete="off" maxlength="120" placeholder="As Google Meet shows it" />
+          </label>
+          <label>
             Access token
             <input id="tokenInput" type="password" autocomplete="off" spellcheck="false" />
           </label>
           <button type="submit">Start / Connect</button>
+          <button id="ownerApply" type="button" disabled>Set name</button>
         </form>
       </header>
 
@@ -39,6 +44,13 @@
           <span class="metric" id="insightCount">0</span>
           <span class="label">Insights</span>
         </div>
+      </section>
+
+      <section class="glance" aria-labelledby="glanceHeading">
+        <h2 id="glanceHeading">Needs your attention</h2>
+        <p id="glanceText" class="glance-text" role="status" aria-live="polite" data-kind="none">Nothing needs your attention.</p>
+        <ul id="cueList" class="cue-list"></ul>
+        <p id="ownerStatus" class="owner-status">No name set. Add your caption name to track questions aimed at you.</p>
       </section>
 
       <section class="workspace">
