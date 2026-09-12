@@ -199,6 +199,22 @@ class SessionStore:
             now=self.clock(),
         )
 
+    async def refresh_time_based_cues(self) -> list[str]:
+        """Recompute cues for every active session; return IDs whose cues changed.
+
+        `silent_participant` depends on elapsed time, not on new events, so it
+        would otherwise never appear once a session goes quiet. Capture
+        heartbeats keep such a session alive well past the silence threshold.
+        """
+        async with self.lock:
+            changed: list[str] = []
+            for session_id, session in self.sessions.items():
+                before = [(cue.kind, cue.message) for cue in session.cues]
+                self._refresh_cues(session)
+                if [(cue.kind, cue.message) for cue in session.cues] != before:
+                    changed.append(session_id)
+            return changed
+
     async def expired(self) -> list[str]:
         async with self.lock:
             now = self.clock()

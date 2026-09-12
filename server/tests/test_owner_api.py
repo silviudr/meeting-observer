@@ -92,3 +92,44 @@ async def test_unanswered_question_cue_reaches_the_snapshot() -> None:
             snapshot = (await http.get("/api/sessions/demo")).json()
             kinds = [cue["kind"] for cue in snapshot["cues"]]
             assert "unanswered_question" in kinds
+
+
+@pytest.mark.asyncio
+async def test_creation_body_can_clear_an_owner_on_an_active_session() -> None:
+    app = create_app(access_token="")
+    async with app.router.lifespan_context(app):
+        async with await client(app) as http:
+            await http.post("/api/sessions/demo", json={"owner_speaker": "Maria"})
+
+            # Creation is idempotent, so an explicit null must clear the owner
+            # rather than being silently ignored.
+            cleared = await http.post("/api/sessions/demo", json={"owner_speaker": None})
+            assert cleared.status_code == 200
+            assert cleared.json()["owner_speaker"] is None
+            assert cleared.json()["owner_matched"] is False
+
+
+@pytest.mark.asyncio
+async def test_owner_set_at_creation_is_broadcast_to_connected_dashboards() -> None:
+    app = create_app(access_token="")
+    async with app.router.lifespan_context(app):
+        async with await client(app) as http:
+            await http.post("/api/sessions/demo")
+
+        sent: list[dict] = []
+
+        class Recorder:
+            async def send_json(self, payload):
+                sent.append(payload)
+
+            async def close(self, code=1000):
+                return None
+
+        socket = Recorder()
+        app.state.hub.connections["demo"].add(socket)
+
+        async with await client(app) as http:
+            await http.post("/api/sessions/demo", json={"owner_speaker": "Maria"})
+
+        assert sent, "a connected dashboard should be told about the owner immediately"
+        assert sent[-1]["owner_speaker"] == "Maria"

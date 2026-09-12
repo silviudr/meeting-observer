@@ -26,7 +26,9 @@ are all unavailable without it.
 
 Proposed: an owner speaker setting carried on the session, set from the
 extension popup and visible in the dashboard. Speaker matching against caption
-names is approximate and must fail visibly rather than silently mislabel.
+names is exact after case-folding and whitespace normalisation, never fuzzy,
+because a wrong match would attribute another participant's speech to the owner.
+An unmatched name must fail visibly rather than silently mislabel.
 
 ## 2. Salience and Quiet Operation (selected)
 

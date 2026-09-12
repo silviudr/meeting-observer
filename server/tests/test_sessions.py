@@ -281,3 +281,36 @@ async def test_ending_a_session_clears_owner_and_cues() -> None:
     assert snapshot.owner_speaker is None
     assert snapshot.owner_matched is False
     assert snapshot.cues == []
+
+
+@pytest.mark.asyncio
+async def test_silence_cue_appears_without_any_new_event() -> None:
+    clock = {"now": 0.0}
+    store = SessionStore(idle_seconds=3600, clock=lambda: clock["now"])
+    await store.create("demo")
+    await store.add_event("demo", event(speaker="Priya", client_event_id="p1"))
+    assert (await store.get("demo")).snapshot().cues == []
+
+    # No further captions arrive; only time passes, as when capture heartbeats
+    # keep a quiet session alive.
+    clock["now"] = 400.0
+    changed = await store.refresh_time_based_cues()
+
+    assert changed == ["demo"]
+    cues = (await store.get("demo")).snapshot().cues
+    assert [cue.kind for cue in cues] == ["silent_participant"]
+
+
+@pytest.mark.asyncio
+async def test_unchanged_cues_are_not_reported_as_changed() -> None:
+    clock = {"now": 0.0}
+    store = SessionStore(idle_seconds=3600, clock=lambda: clock["now"])
+    await store.create("demo")
+    await store.add_event("demo", event(speaker="Priya", client_event_id="p1"))
+
+    assert await store.refresh_time_based_cues() == []
+    clock["now"] = 400.0
+    assert await store.refresh_time_based_cues() == ["demo"]
+    # Still silent, same cue: no further broadcast should be triggered.
+    clock["now"] = 401.0
+    assert await store.refresh_time_based_cues() == []

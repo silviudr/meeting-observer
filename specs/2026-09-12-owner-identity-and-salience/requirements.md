@@ -77,7 +77,8 @@ Cluster membership for `position_change`: supportive is `seeking_decision`,
 - The dashboard shows a glance area with the highest-priority cue, the full cue
   list, and the owner's match state. The owner can set the name from the
   dashboard as well, because caption names are not known until captions arrive.
-- The owner's own participant row is visually distinguished.
+- The owner's own coaching card is visually distinguished. The dashboard has
+  no participant list, only a count, so there is no participant row to mark.
 
 ## Out of Scope
 

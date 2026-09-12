@@ -260,7 +260,7 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
     els.analysisStatus.textContent = (messages[snapshot.analysis_status] || "Analysis status unknown.")
       + (snapshot.analysis_detail ? ` ${snapshot.analysis_detail}` : "");
     renderTranscript(snapshot.transcript);
-    renderInsights(snapshot.insights, snapshot.transcript);
+    renderInsights(snapshot.insights, snapshot.transcript, snapshot.participants);
     renderGlance(snapshot);
   }
 
@@ -322,15 +322,17 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
     list.scrollTop = follow ? list.scrollHeight : newAnchor ? newAnchor.offsetTop - anchorOffset : oldTop;
   }
 
-  function renderInsights(insights, transcript) {
+  function renderInsights(insights, transcript, participants) {
     const events = new Map(transcript.map((event) => [event.id, event]));
+    // Reuse the backend's owner decision rather than re-implementing matching here.
+    const owners = new Set((participants || []).filter((p) => p.is_owner).map((p) => p.speaker));
     const scrollTop = els.insightsList.scrollTop;
     els.insightsList.innerHTML = insights.map((insight) => {
       const evidence = (insight.evidence || []).map((line, index) => {
         const event = events.get(insight.evidence_event_ids?.[index]);
         return `<li><strong>${escapeHtml(event?.speaker || insight.speaker)}:</strong> ${escapeHtml(line)}</li>`;
       }).join("");
-      return `<article class="insight">
+      return `<article class="insight${owners.has(insight.speaker) ? " is-owner" : ""}">
         <div class="insight-top"><div><strong>${escapeHtml(insight.speaker)}</strong>
           <div class="intent-label">${escapeHtml(insight.intent_label.replaceAll("_", " "))}</div></div>
           <span class="model-mode">${modeLabel(insight.analysis_mode)}</span></div>

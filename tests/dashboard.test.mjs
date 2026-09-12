@@ -447,3 +447,19 @@ test("ending a session clears the glance area", async () => {
   assert.equal(h.elements.cueList.innerHTML, "");
   assert.equal(h.elements.ownerApply.disabled, true);
 });
+
+test("the owner's own coaching card is marked using the backend's is_owner flag", async () => {
+  const h = harness("", async (url) => response(snapshot(url.split("/").at(-1), {
+    participants: [{ speaker: "Ada", is_owner: true }, { speaker: "Dan", is_owner: false }],
+    insights: [
+      { speaker: "Ada", intent_label: "raising_risk", hypothesis: "H.", confidence: 0.5,
+        evidence: [], evidence_event_ids: [], analysis_mode: "rules", suggested_user_move: "Ask." },
+      { speaker: "Dan", intent_label: "seeking_decision", hypothesis: "H.", confidence: 0.5,
+        evidence: [], evidence_event_ids: [], analysis_mode: "rules", suggested_user_move: "Ask." },
+    ],
+  })));
+  await h.submit("alpha");
+
+  const cards = h.elements.insightsList.innerHTML.match(/<article class="insight[^"]*"/g);
+  assert.deepEqual(cards, ['<article class="insight is-owner"', '<article class="insight"']);
+});

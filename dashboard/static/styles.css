@@ -412,8 +412,7 @@ label {
   color: var(--muted);
 }
 
-/* The owner's own row, so attribution is obvious at a glance. */
-.participant.is-owner,
+/* The owner's own coaching card, so attribution is obvious at a glance. */
 .insight.is-owner {
   border-left: 3px solid var(--blue);
 }

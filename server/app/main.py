@@ -47,6 +47,11 @@ def create_app(*, session_store: SessionStore | None = None, intent_analyzer=Non
             await asyncio.sleep(min(1, store.idle_seconds / 2))
             for session_id in await store.expired():
                 await end_session(session_id)
+            # Time-based cues change without any new event, so refresh them here
+            # and broadcast only when the cue list actually differs.
+            for session_id in await store.refresh_time_based_cues():
+                with suppress(SessionMissing, SessionEnded):
+                    await hub.broadcast(session_id, (await store.get(session_id)).snapshot())
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -174,8 +179,12 @@ def create_app(*, session_store: SessionStore | None = None, intent_analyzer=Non
             session = await active(session_id)
         else:
             session = await store.create(session_id, "vllm" if analyzer.enabled else "rules")
-        if payload is not None and payload.owner_speaker is not None:
+        if payload is not None:
+            # A supplied body is always applied, including an explicit null that
+            # clears the owner on an already-active session. Connected dashboards
+            # are told immediately rather than waiting for the next caption.
             session = await store.set_owner(session_id, payload.owner_speaker)
+            await hub.broadcast(session_id, session.snapshot())
         return session.snapshot()
 
     @app.post("/api/sessions/{session_id}/owner")
