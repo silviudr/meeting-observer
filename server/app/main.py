@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
 from .intent_analyzer import build_analyzer
-from .models import HealthResponse, IngestResponse, TranscriptEvent, TranscriptEventIn
+from .models import HealthResponse, IngestResponse, OwnerIn, TranscriptEvent, TranscriptEventIn
 from .sessions import SessionEnded, SessionLimit, SessionMissing, SessionStore
 from .transcript import DashboardHub
 
@@ -47,6 +47,11 @@ def create_app(*, session_store: SessionStore | None = None, intent_analyzer=Non
             await asyncio.sleep(min(1, store.idle_seconds / 2))
             for session_id in await store.expired():
                 await end_session(session_id)
+            # Time-based cues change without any new event, so refresh them here
+            # and broadcast only when the cue list actually differs.
+            for session_id in await store.refresh_time_based_cues():
+                with suppress(SessionMissing, SessionEnded):
+                    await hub.broadcast(session_id, (await store.get(session_id)).snapshot())
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -168,11 +173,26 @@ def create_app(*, session_store: SessionStore | None = None, intent_analyzer=Non
         return HealthResponse(ok=True, model_mode="vllm" if analyzer.enabled else "rules")
 
     @app.post("/api/sessions/{session_id}")
-    async def create_session(session_id: str):
+    async def create_session(session_id: str, payload: OwnerIn | None = None):
         validate_id(session_id)
         if session_id in store.sessions:
-            return (await active(session_id)).snapshot()
-        return (await store.create(session_id, "vllm" if analyzer.enabled else "rules")).snapshot()
+            session = await active(session_id)
+        else:
+            session = await store.create(session_id, "vllm" if analyzer.enabled else "rules")
+        if payload is not None:
+            # A supplied body is always applied, including an explicit null that
+            # clears the owner on an already-active session. Connected dashboards
+            # are told immediately rather than waiting for the next caption.
+            session = await store.set_owner(session_id, payload.owner_speaker)
+            await hub.broadcast(session_id, session.snapshot())
+        return session.snapshot()
+
+    @app.post("/api/sessions/{session_id}/owner")
+    async def set_owner(session_id: str, payload: OwnerIn):
+        await active(session_id)
+        session = await store.set_owner(session_id, payload.owner_speaker)
+        await hub.broadcast(session_id, session.snapshot())
+        return session.snapshot()
 
     @app.get("/api/sessions/{session_id}")
     async def get_session(session_id: str):

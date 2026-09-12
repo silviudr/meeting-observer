@@ -26,6 +26,15 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+SalienceKind = Literal[
+    "unanswered_question",
+    "new_risk",
+    "position_change",
+    "owner_dominating",
+    "silent_participant",
+]
+
+
 class TranscriptEventIn(BaseModel):
     speaker: str = Field(default="Unknown", min_length=1, max_length=120)
     text: str = Field(min_length=1, max_length=10_000)
@@ -51,12 +60,24 @@ class IntentHypothesis(BaseModel):
     updated_at: datetime = Field(default_factory=utc_now)
 
 
+class SalienceCue(BaseModel):
+    """Attention cue computed by the application, never by the model."""
+
+    kind: SalienceKind
+    message: str
+    priority: int
+    speaker: str | None = None
+    evidence_event_ids: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=utc_now)
+
+
 class ParticipantState(BaseModel):
     speaker: str
     utterance_count: int = 0
     last_seen_at: datetime | None = None
     recent_lines: list[str] = Field(default_factory=list)
     current_intent: IntentHypothesis | None = None
+    is_owner: bool = False
 
 
 class SessionSnapshot(BaseModel):
@@ -71,6 +92,9 @@ class SessionSnapshot(BaseModel):
     analysis_mode: Literal["vllm", "rules"] = "rules"
     analysis_status: Literal["idle", "pending", "ready", "unavailable"] = "idle"
     analysis_detail: str | None = None
+    owner_speaker: str | None = None
+    owner_matched: bool = False
+    cues: list[SalienceCue] = Field(default_factory=list)
 
 
 class IngestResponse(BaseModel):
@@ -78,6 +102,10 @@ class IngestResponse(BaseModel):
     duplicate: bool = False
     event: TranscriptEvent | None = None
     insights: list[IntentHypothesis] = Field(default_factory=list)
+
+
+class OwnerIn(BaseModel):
+    owner_speaker: str | None = Field(default=None, max_length=120)
 
 
 class HealthResponse(BaseModel):

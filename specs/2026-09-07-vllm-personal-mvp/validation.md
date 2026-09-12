@@ -1,15 +1,17 @@
 # Validation
 
-Status: automated local checks passed; live GX10 and Google Meet checks pending.
+Status: automated local checks passed. A live GX10 run of the full application
+path succeeded qualitatively; no latency or runtime configuration was measured.
+Google Meet checks remain pending.
 
 ## Automated Acceptance
 
 Run on 2026-09-07 from the repository root.
 
 - `cd server && ../.venv/bin/python -m pytest tests`
-  - Result: 109 passed.
+  - Result: 104 passed.
 - `node --test tests/*.test.mjs`
-  - Result: 2 browser-side suites passed.
+  - Result: 2 browser-side suites passed (37 tests).
 - In-process FastAPI smoke using `httpx.ASGITransport`
   - Result: `/health` returned rules mode, explicit session create succeeded,
     one synthetic caption was accepted, snapshot returned one rules insight,
@@ -38,7 +40,21 @@ Socket-level curl smoke against a sandbox-started uvicorn process could not
 connect from a separate sandbox command. A host-visible uvicorn process was then
 started and verified on `127.0.0.1:8010`.
 
-## Hardware Acceptance (Requires GX10)
+## Hardware Acceptance (GX10)
+
+### Owner-reported live run (date not recorded)
+
+The owner ran the full application path against vLLM on the GX10: captions
+through FastAPI to the GX10 endpoint and back to the dashboard, which displayed
+model-mode insights with evidence. Reported as working as expected.
+
+This is an owner-reported qualitative smoke check, not measured evidence. No
+latency samples, vLLM/model revision, quantization, context or generation
+settings, or cold/warm state were recorded, so it does not satisfy the Phase 2
+exit criterion. Repeat the run capturing those values before treating the
+configuration as selected on measured grounds.
+
+### Still required
 
 Record vLLM/model versions, quantization, memory and runtime settings. Verify no
 reasoning is generated, structured output and coaching quality on sample cases,

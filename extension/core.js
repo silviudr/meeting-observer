@@ -1,6 +1,6 @@
 (function (root) {
   "use strict";
-  const DEFAULTS = Object.freeze({ backendUrl: "http://localhost:8010", sessionId: "demo", captureEnabled: false });
+  const DEFAULTS = Object.freeze({ backendUrl: "http://localhost:8010", sessionId: "demo", ownerSpeaker: "", captureEnabled: false });
   const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
 
   function validateSettings(input) {
@@ -12,7 +12,12 @@
     if (!/^[A-Za-z0-9_-]{1,80}$/.test(input.sessionId)) {
       throw new Error("Session ID needs 1-80 letters, digits, underscores or hyphens.");
     }
-    return { backendUrl: url.origin, sessionId: input.sessionId, captureEnabled: input.captureEnabled === true };
+    // Your own caption name, so the backend can tell your speech from everyone
+    // else's. A setting, not meeting content. Empty means no owner is declared.
+    const ownerSpeaker = normalize(input.ownerSpeaker);
+    if (ownerSpeaker.length > 120) throw new Error("Your display name must be 120 characters or fewer.");
+    return { backendUrl: url.origin, sessionId: input.sessionId, ownerSpeaker,
+      captureEnabled: input.captureEnabled === true };
   }
 
   function parseCaption(raw, explicitSpeaker = "") {
@@ -210,7 +215,7 @@
       const epoch = this.epoch;
       this.publish();
       try {
-        const response = await this.request("", null);
+        const response = await this.request("", config.ownerSpeaker ? { owner_speaker: config.ownerSpeaker } : null);
         if (epoch !== this.epoch || this.terminal(response)) return this.snapshot();
         if (!response.ok) throw new Error("connect");
         this.active = true; this.config.captureEnabled = true;

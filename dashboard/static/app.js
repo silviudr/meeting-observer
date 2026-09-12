@@ -3,10 +3,12 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
     "sessionForm", "sessionInput", "tokenInput", "statusText", "lineCount",
     "participantCount", "insightCount", "transcriptList", "insightsList",
     "modelMode", "analysisStatus", "clearButton",
+    "ownerInput", "ownerApply", "glanceText", "cueList", "ownerStatus",
   ].map((id) => [id, document.querySelector(`#${id}`)]));
   const state = {
     generation: 0, sessionId: null, token: "", snapshot: null,
     socket: null, request: null, requestTimer: null, timer: null, attempts: 0, active: false,
+    pendingOwner: "",
   };
   const validId = (id) => /^[A-Za-z0-9_-]{1,80}$/.test(id);
   const current = (generation) => state.generation === generation;
@@ -29,6 +31,11 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
     els.modelMode.textContent = "Not connected";
     els.analysisStatus.textContent = "No active analysis";
     els.analysisStatus.dataset.status = "idle";
+    els.glanceText.textContent = "Nothing needs your attention.";
+    els.glanceText.dataset.kind = "none";
+    els.cueList.replaceChildren();
+    els.ownerStatus.textContent = "No name set. Add your caption name to track questions aimed at you.";
+    els.ownerApply.disabled = true;
   }
 
   // Invalidate callbacks before aborting requests or closing the old socket.
@@ -64,15 +71,19 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
     return `Request failed (HTTP ${code}).`;
   }
 
-  async function request(method, generation) {
+  async function request(method, generation, { path = "", body = null } = {}) {
     const controller = new AbortController();
     state.request = controller;
     const timeout = window.setTimeout(() => controller.abort(), 12000);
     state.requestTimer = timeout;
     try {
-      const response = await fetch(`/api/sessions/${encodeURIComponent(state.sessionId)}`, {
+      const response = await fetch(`/api/sessions/${encodeURIComponent(state.sessionId)}${path}`, {
         method,
-        headers: state.token ? { Authorization: `Bearer ${state.token}` } : {},
+        headers: {
+          ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
+          ...(body ? { "Content-Type": "application/json" } : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
         signal: controller.signal,
         cache: "no-store",
       });
@@ -105,6 +116,7 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
     state.snapshot = snapshot;
     render(snapshot);
     els.clearButton.disabled = false;
+    els.ownerApply.disabled = false;
     return true;
   }
 
@@ -178,7 +190,10 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
   async function load(method, generation) {
     if (!current(generation) || !state.active) return;
     try {
-      const snapshot = await request(method, generation);
+      // Only the explicit Start/Connect carries the name; reconnects must not
+      // resend it, because it may have been changed since.
+      const snapshot = await request(method, generation,
+        method === "POST" && state.pendingOwner ? { body: { owner_speaker: state.pendingOwner } } : {});
       if (!acceptSnapshot(snapshot, generation)) return;
       status(`Connecting to ${state.sessionId}`);
       connectSocket(generation);
@@ -201,6 +216,7 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
       return;
     }
     state.sessionId = sessionId;
+    state.pendingOwner = els.ownerInput.value.trim();
     state.token = els.tokenInput.value;
     state.active = true;
     state.attempts = 0;
@@ -244,7 +260,46 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
     els.analysisStatus.textContent = (messages[snapshot.analysis_status] || "Analysis status unknown.")
       + (snapshot.analysis_detail ? ` ${snapshot.analysis_detail}` : "");
     renderTranscript(snapshot.transcript);
-    renderInsights(snapshot.insights, snapshot.transcript);
+    renderInsights(snapshot.insights, snapshot.transcript, snapshot.participants);
+    renderGlance(snapshot);
+  }
+
+  // The glance area is the only thing worth reading mid-sentence, so it shows a
+  // single item. An empty cue list is a real result, not a failure to analyse.
+  function renderGlance(snapshot) {
+    const cues = Array.isArray(snapshot.cues) ? snapshot.cues : [];
+    const [first, ...rest] = cues;
+    els.glanceText.textContent = first ? first.message : "Nothing needs your attention.";
+    els.glanceText.dataset.kind = first ? first.kind : "none";
+    els.cueList.innerHTML = rest.map((cue) =>
+      `<li class="cue" data-kind="${escapeHtml(cue.kind)}">${escapeHtml(cue.message)}</li>`).join("");
+    els.ownerStatus.textContent = ownerMessage(snapshot);
+  }
+
+  function ownerMessage(snapshot) {
+    if (!snapshot.owner_speaker) {
+      return "No name set. Add your caption name to track questions aimed at you.";
+    }
+    if (snapshot.owner_matched) return `Tracking you as ${snapshot.owner_speaker}.`;
+    // Never let an unmatched name look like it is working.
+    return `Waiting to hear ${snapshot.owner_speaker} in captions. Check it matches your caption label exactly.`;
+  }
+
+  async function applyOwner() {
+    if (!state.sessionId || els.ownerApply.disabled) return;
+    const generation = state.generation;
+    const owner = els.ownerInput.value.trim();
+    els.ownerApply.disabled = true;
+    try {
+      const snapshot = await request("POST", generation, {
+        path: "/owner", body: { owner_speaker: owner || null },
+      });
+      if (current(generation)) acceptSnapshot(snapshot, generation);
+    } catch (error) {
+      if (!current(generation)) return;
+      els.ownerApply.disabled = false;
+      status(error.status ? httpMessage(error.status) : "Could not set your name. Retry.");
+    }
   }
 
   function renderTranscript(transcript) {
@@ -267,15 +322,17 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
     list.scrollTop = follow ? list.scrollHeight : newAnchor ? newAnchor.offsetTop - anchorOffset : oldTop;
   }
 
-  function renderInsights(insights, transcript) {
+  function renderInsights(insights, transcript, participants) {
     const events = new Map(transcript.map((event) => [event.id, event]));
+    // Reuse the backend's owner decision rather than re-implementing matching here.
+    const owners = new Set((participants || []).filter((p) => p.is_owner).map((p) => p.speaker));
     const scrollTop = els.insightsList.scrollTop;
     els.insightsList.innerHTML = insights.map((insight) => {
       const evidence = (insight.evidence || []).map((line, index) => {
         const event = events.get(insight.evidence_event_ids?.[index]);
         return `<li><strong>${escapeHtml(event?.speaker || insight.speaker)}:</strong> ${escapeHtml(line)}</li>`;
       }).join("");
-      return `<article class="insight">
+      return `<article class="insight${owners.has(insight.speaker) ? " is-owner" : ""}">
         <div class="insight-top"><div><strong>${escapeHtml(insight.speaker)}</strong>
           <div class="intent-label">${escapeHtml(insight.intent_label.replaceAll("_", " "))}</div></div>
           <span class="model-mode">${modeLabel(insight.analysis_mode)}</span></div>
@@ -292,6 +349,7 @@ export function mountDashboard({ window, document, fetch, WebSocket }) {
     start(els.sessionInput.value, "POST");
   });
   els.clearButton.addEventListener("click", endSession);
+  els.ownerApply.addEventListener("click", applyOwner);
   window.addEventListener("pagehide", () => {
     terminal("No active session");
     els.sessionInput.value = "";

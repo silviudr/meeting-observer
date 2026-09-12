@@ -112,9 +112,23 @@ To capture a meeting:
 2. Open the Meeting Observer extension popup from the active Meet tab.
 3. Set backend URL to `http://localhost:8010`.
 4. Choose a fresh session ID, for example `demo1`.
-5. Enter the access token only if `MEETING_OBSERVER_ACCESS_TOKEN` is set.
-6. Check **Capture captions** and click **Start capture**.
-7. Open <http://localhost:8010> and connect to the same session ID.
+5. Enter your own name exactly as Google Meet shows it in captions. This is
+   optional; without it the app cannot tell your speech from anyone else's, so
+   questions aimed at you and your share of the discussion are not tracked.
+6. Enter the access token only if `MEETING_OBSERVER_ACCESS_TOKEN` is set.
+7. Check **Capture captions** and click **Start capture**.
+8. Open <http://localhost:8010> and connect to the same session ID.
+
+The dashboard shows a **Needs your attention** area with the single most
+relevant cue: a question aimed at you that you have not answered, a newly raised
+risk, a speaker changing position, your own share of recent turns, or someone who
+has gone quiet. An empty area means nothing crossed a threshold; it is a real
+result, not a failure. Cues are computed by the application from counted events
+and elapsed time, never by the model, and nothing infers mood or personality.
+
+If your caption name never matches a speaker, the dashboard says it is still
+waiting rather than silently tracking nobody. You can correct the name mid-meeting
+with **Set name**.
 
 Keep the Meet tab visible during capture. Chrome and Meet may throttle hidden
 tabs, and this extension depends on rendered caption text.
