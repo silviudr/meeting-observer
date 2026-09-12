@@ -53,7 +53,8 @@ IDs contain 1-80 ASCII letters, digits, underscores or hyphens.
 
 | Request | Behavior |
 | --- | --- |
-| `POST /api/sessions/{id}` | Create explicitly; existing active ID is idempotent; ended ID is 410 |
+| `POST /api/sessions/{id}` | Create explicitly; existing active ID is idempotent; ended ID is 410. Optional body `{"owner_speaker": str}` declares your caption name |
+| `POST /api/sessions/{id}/owner` | Set or clear your caption name on an active session; `null` or empty clears it; unknown 404, ended 410 |
 | `GET /api/sessions/{id}` | Snapshot only; unknown 404, ended 410 |
 | `POST /api/sessions/{id}/events` | Active session required; stable `client_event_id` deduplicates retries |
 | `POST /api/sessions/{id}/heartbeat` | Renew capture activity; unknown 404, ended 410 |

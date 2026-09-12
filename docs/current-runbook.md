@@ -5,5 +5,5 @@ entrypoint, localhost port 8010, session lifecycle, authentication and simulatio
 `app.asgi:app` and `app.complete:app` are compatibility aliases, not separate
 deployment choices.
 
-See the [GX10 guide](dgx-deployment.md) for pending vLLM runtime checks and the
+See the [GX10 guide](dgx-deployment.md) for unmeasured vLLM runtime status and the
 [evaluation guide](meeting-analysis-evaluation.md) for synthetic validation.

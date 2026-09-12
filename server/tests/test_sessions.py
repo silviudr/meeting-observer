@@ -171,3 +171,113 @@ async def test_clear_ends_all_sessions_for_shutdown() -> None:
         await store.get("one")
     with pytest.raises(SessionMissing):
         await store.get("two")
+
+
+@pytest.mark.asyncio
+async def test_owner_can_be_set_before_any_caption_arrives() -> None:
+    store = SessionStore()
+    await store.create("demo")
+
+    session = await store.set_owner("demo", "  Maria   Lopez ")
+
+    assert session.owner_speaker == "Maria Lopez"
+    assert session.snapshot().owner_matched is False
+
+
+@pytest.mark.asyncio
+async def test_owner_match_is_reported_once_that_speaker_is_captured() -> None:
+    store = SessionStore()
+    await store.create("demo")
+    await store.set_owner("demo", "Maria")
+
+    await store.add_event("demo", event(speaker="Dan", client_event_id="d1"))
+    assert (await store.get("demo")).snapshot().owner_matched is False
+
+    await store.add_event("demo", event(speaker="Maria", client_event_id="m1"))
+    snapshot = (await store.get("demo")).snapshot()
+    assert snapshot.owner_matched is True
+    assert [p.speaker for p in snapshot.participants if p.is_owner] == ["Maria"]
+
+
+@pytest.mark.asyncio
+async def test_setting_the_owner_later_relabels_existing_participants() -> None:
+    store = SessionStore()
+    await store.create("demo")
+    await store.add_event("demo", event(speaker="Maria", client_event_id="m1"))
+    assert (await store.get("demo")).snapshot().owner_matched is False
+
+    await store.set_owner("demo", "Maria")
+
+    snapshot = (await store.get("demo")).snapshot()
+    assert snapshot.owner_matched is True
+    assert [p.speaker for p in snapshot.participants if p.is_owner] == ["Maria"]
+
+
+@pytest.mark.asyncio
+async def test_owner_can_be_cleared() -> None:
+    store = SessionStore()
+    await store.create("demo")
+    await store.set_owner("demo", "Maria")
+
+    session = await store.set_owner("demo", "")
+
+    assert session.owner_speaker is None
+    assert session.snapshot().owner_matched is False
+
+
+@pytest.mark.asyncio
+async def test_unanswered_question_appears_in_the_snapshot() -> None:
+    store = SessionStore()
+    await store.create("demo")
+    await store.set_owner("demo", "Maria")
+
+    await store.add_event(
+        "demo", event(speaker="Dan", text="What is the migration cost?", client_event_id="q1")
+    )
+
+    cues = (await store.get("demo")).snapshot().cues
+    assert [cue.kind for cue in cues] == ["unanswered_question"]
+
+    await store.add_event(
+        "demo", event(speaker="Maria", text="About two weeks.", client_event_id="a1")
+    )
+    assert (await store.get("demo")).snapshot().cues == []
+
+
+@pytest.mark.asyncio
+async def test_a_risk_surfaces_once_and_does_not_repeat_on_the_next_pass() -> None:
+    store = SessionStore()
+    await store.create("demo")
+    await store.add_event("demo", event(speaker="Priya", client_event_id="p1"))
+
+    risk = IntentHypothesis(
+        speaker="Priya", intent_label="raising_risk", hypothesis="Priya may be surfacing risk.",
+        confidence=0.8, evidence=["line"], evidence_event_ids=["p1"],
+        suggested_user_move="Ask what specific evidence would resolve this concern.")
+    session = await store.update_insights(
+        "demo", [risk], revision=1, mode="vllm", status="ready")
+    assert [cue.kind for cue in session.snapshot().cues] == ["new_risk"]
+
+    # A second pass holding the same label is not a new risk.
+    await store.add_event("demo", event(speaker="Priya", client_event_id="p2"))
+    session = await store.update_insights(
+        "demo", [risk], revision=2, mode="vllm", status="ready")
+    assert [cue.kind for cue in session.snapshot().cues] == []
+
+
+@pytest.mark.asyncio
+async def test_ending_a_session_clears_owner_and_cues() -> None:
+    store = SessionStore()
+    await store.create("demo")
+    await store.set_owner("demo", "Maria")
+    await store.add_event(
+        "demo", event(speaker="Dan", text="Should we delay?", client_event_id="q1")
+    )
+    assert (await store.get("demo")).snapshot().cues
+
+    snapshot = await store.end("demo")
+
+    assert snapshot.status == "ended"
+    assert snapshot.owner_speaker is None
+    assert snapshot.owner_matched is False
+    assert snapshot.cues == []

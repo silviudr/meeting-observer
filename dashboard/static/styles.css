@@ -344,3 +344,80 @@ input:focus-visible {
 label {
   min-width: 0;
 }
+
+/* Glance area: the one thing worth reading mid-sentence. */
+.glance {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.glance h2 {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.glance-text {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ink);
+  border-left: 4px solid var(--line);
+  padding-left: 0.75rem;
+}
+
+.glance-text[data-kind="none"] {
+  font-weight: 400;
+  color: var(--muted);
+  border-left-color: transparent;
+  padding-left: 0;
+}
+
+.glance-text[data-kind="unanswered_question"] { border-left-color: var(--red); }
+.glance-text[data-kind="new_risk"] { border-left-color: var(--amber); }
+.glance-text[data-kind="position_change"] { border-left-color: var(--blue); }
+.glance-text[data-kind="owner_dominating"] { border-left-color: var(--amber); }
+.glance-text[data-kind="silent_participant"] { border-left-color: var(--muted); }
+
+.cue-list {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.cue {
+  font-size: 0.9rem;
+  color: var(--ink);
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--line);
+}
+
+.cue[data-kind="new_risk"] { border-left-color: var(--amber); }
+.cue[data-kind="position_change"] { border-left-color: var(--blue); }
+
+.owner-status {
+  margin: 0.7rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* The owner's own row, so attribution is obvious at a glance. */
+.participant.is-owner,
+.insight.is-owner {
+  border-left: 3px solid var(--blue);
+}
+
+@media (max-width: 720px) {
+  .glance-text { font-size: 1rem; }
+}

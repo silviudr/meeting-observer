@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
 from .intent_analyzer import build_analyzer
-from .models import HealthResponse, IngestResponse, TranscriptEvent, TranscriptEventIn
+from .models import HealthResponse, IngestResponse, OwnerIn, TranscriptEvent, TranscriptEventIn
 from .sessions import SessionEnded, SessionLimit, SessionMissing, SessionStore
 from .transcript import DashboardHub
 
@@ -168,11 +168,22 @@ def create_app(*, session_store: SessionStore | None = None, intent_analyzer=Non
         return HealthResponse(ok=True, model_mode="vllm" if analyzer.enabled else "rules")
 
     @app.post("/api/sessions/{session_id}")
-    async def create_session(session_id: str):
+    async def create_session(session_id: str, payload: OwnerIn | None = None):
         validate_id(session_id)
         if session_id in store.sessions:
-            return (await active(session_id)).snapshot()
-        return (await store.create(session_id, "vllm" if analyzer.enabled else "rules")).snapshot()
+            session = await active(session_id)
+        else:
+            session = await store.create(session_id, "vllm" if analyzer.enabled else "rules")
+        if payload is not None and payload.owner_speaker is not None:
+            session = await store.set_owner(session_id, payload.owner_speaker)
+        return session.snapshot()
+
+    @app.post("/api/sessions/{session_id}/owner")
+    async def set_owner(session_id: str, payload: OwnerIn):
+        await active(session_id)
+        session = await store.set_owner(session_id, payload.owner_speaker)
+        await hub.broadcast(session_id, session.snapshot())
+        return session.snapshot()
 
     @app.get("/api/sessions/{session_id}")
     async def get_session(session_id: str):

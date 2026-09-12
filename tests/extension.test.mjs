@@ -33,11 +33,11 @@ const caption = (id) => ({
 test("validateSettings accepts only loopback HTTP backends and ASCII session IDs", () => {
   assert.deepEqual(
     core.validateSettings({ backendUrl: "http://localhost:8010", sessionId: "demo", captureEnabled: false }),
-    { backendUrl: "http://localhost:8010", sessionId: "demo", captureEnabled: false },
+    { backendUrl: "http://localhost:8010", sessionId: "demo", ownerSpeaker: "", captureEnabled: false },
   );
   assert.deepEqual(
     core.validateSettings({ backendUrl: "http://127.0.0.1:8020/", sessionId: "Live_Meeting-1", captureEnabled: true }),
-    { backendUrl: "http://127.0.0.1:8020", sessionId: "Live_Meeting-1", captureEnabled: true },
+    { backendUrl: "http://127.0.0.1:8020", sessionId: "Live_Meeting-1", ownerSpeaker: "", captureEnabled: true },
   );
   for (const backendUrl of [
     "https://localhost:8010", "http://example.com", "http://localhost:8010/path",
@@ -384,7 +384,7 @@ test("Apply sends validated settings with the active tab when capture is enabled
   await h.apply();
   assert.deepEqual(h.sent[1], {
     type: "observer:configure",
-    settings: { backendUrl: "http://localhost:8010", sessionId: "live-1", captureEnabled: true },
+    settings: { backendUrl: "http://localhost:8010", sessionId: "live-1", ownerSpeaker: "", captureEnabled: true },
     accessToken: "secret",
     tabId: 42,
   });
@@ -510,4 +510,42 @@ test("meetingPresent requires a Meet meeting path and a leave-call control", () 
   assert.equal(content.meetingPresent(inCall, { pathname: "/abc-defg-hij/popup" }), true);
   assert.equal(content.meetingPresent(inCall, { pathname: "/settings" }), false);
   assert.equal(content.meetingPresent(notInCall, { pathname: "/abc-defg-hij" }), false);
+});
+
+test("validateSettings normalizes the owner display name and bounds its length", () => {
+  const settings = core.validateSettings({
+    backendUrl: "http://localhost:8010", sessionId: "demo",
+    ownerSpeaker: "  Maria   Lopez  ", captureEnabled: false,
+  });
+  assert.equal(settings.ownerSpeaker, "Maria Lopez");
+
+  // Absent or blank is valid: declaring an owner is optional.
+  for (const ownerSpeaker of [undefined, "", "   "]) {
+    assert.equal(core.validateSettings({
+      backendUrl: "http://localhost:8010", sessionId: "demo", ownerSpeaker, captureEnabled: false,
+    }).ownerSpeaker, "");
+  }
+
+  assert.throws(() => core.validateSettings({
+    backendUrl: "http://localhost:8010", sessionId: "demo",
+    ownerSpeaker: "x".repeat(121), captureEnabled: false,
+  }), /120 characters/);
+});
+
+test("starting a session sends the owner name, and omits the body when none is set", async () => {
+  const calls = [];
+  const fetchFn = async (url, options) => {
+    calls.push({ url, body: options.body ? JSON.parse(options.body) : null });
+    return { ok: true, status: 200 };
+  };
+
+  const named = new core.CaptureController({ fetchFn });
+  await named.start({ backendUrl: "http://localhost:8010", sessionId: "demo",
+    ownerSpeaker: "Maria", captureEnabled: true }, "", 7);
+  assert.deepEqual(calls[0].body, { owner_speaker: "Maria" });
+
+  const anonymous = new core.CaptureController({ fetchFn });
+  await anonymous.start({ backendUrl: "http://localhost:8010", sessionId: "demo",
+    ownerSpeaker: "", captureEnabled: true }, "", 7);
+  assert.equal(calls[1].body, null);
 });
